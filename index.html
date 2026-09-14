@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Fruitscape</title>
+<meta name="description" content="Map the fruit trees, herbs and verge-side veg around your neighbourhood.">
+<meta name="theme-color" content="#728157">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fruitscape">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* Organic design tokens, inlined so the app renders even if styles.css fails to load */
+  :root{
+    --color-bg:#f5ead8;--color-surface:#ebddc5;--color-text:#201e1d;
+    --color-accent:#c67139;--color-accent-2:#7a8a5e;--color-divider:rgba(32,30,29,.16);
+    --color-neutral-100:#f9f4ed;--color-neutral-200:#eee7db;--color-neutral-300:#dcd3c4;
+    --color-neutral-400:#c0b6a5;--color-neutral-500:#a19786;--color-neutral-600:#82796a;
+    --color-neutral-700:#645c50;--color-neutral-800:#474238;--color-neutral-900:#2e2b25;
+    --color-accent-100:#fff2eb;--color-accent-200:#ffe1d0;--color-accent-300:#ffc6a5;
+    --color-accent-400:#f6a06b;--color-accent-500:#d67f48;--color-accent-600:#b2622d;
+    --color-accent-700:#8c491a;--color-accent-800:#643312;--color-accent-900:#402310;
+    --color-accent-2-100:#f0fae1;--color-accent-2-200:#e1eecc;--color-accent-2-300:#ccdbb2;
+    --color-accent-2-400:#aebf92;--color-accent-2-500:#8fa073;--color-accent-2-600:#728157;
+    --color-accent-2-700:#56633f;--color-accent-2-800:#3d472b;--color-accent-2-900:#272e1b;
+    --font-heading:"Caprasimo",Georgia,serif;--font-body:"Figtree",system-ui,-apple-system,sans-serif;
+    --radius-sm:8px;--radius-md:16px;--radius-lg:28px;
+    --shadow-sm:0 1px 2px rgba(46,43,37,.14);--shadow-md:0 3px 10px rgba(46,43,37,.16);--shadow-lg:0 12px 32px rgba(46,43,37,.22);
+  }
+  body{font-family:var(--font-body);color:var(--color-text)}
+  h2,h3{font-family:var(--font-heading);font-weight:400;line-height:1.12;letter-spacing:-.015em}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--color-neutral-100);
+    -webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  #mapwrap{position:absolute;inset:0}
+  #map{position:absolute;inset:0;background:var(--color-accent-2-100)}
+  .leaflet-tile-pane{filter:saturate(.3) contrast(.92) brightness(1.06) sepia(.14)}
+  .leaflet-container{font-family:var(--font-body);background:var(--color-accent-2-100)}
+  .leaflet-control-attribution{font-size:8.5px;background:rgba(249,244,237,.82);padding:1px 6px}
+  .leaflet-control-attribution a{color:var(--color-accent-2-700)}
+
+  .bar{position:absolute;left:14px;right:14px;top:calc(14px + env(safe-area-inset-top));display:flex;gap:8px;z-index:500}
+  .search{flex:1;height:46px;border-radius:999px;background:var(--color-neutral-100);box-shadow:var(--shadow-md);
+    display:flex;align-items:center;padding:0 16px;gap:10px;font:14px var(--font-body);color:var(--color-neutral-600);border:0;cursor:pointer}
+  .search .ring{width:13px;height:13px;border:2px solid var(--color-neutral-500);border-radius:999px;flex:none}
+  .search input{flex:1;min-width:0;border:0;background:transparent;outline:none;font:15px var(--font-body);color:#201e1d}
+  .search input::placeholder{color:var(--color-neutral-600)}
+  .search .clr{display:none;width:26px;height:26px;flex:none;border:0;border-radius:999px;background:var(--color-neutral-300);
+    color:#201e1d;font:12px var(--font-body);cursor:pointer;align-items:center;justify-content:center}
+  .search .clr.show{display:flex}
+  .round{width:46px;height:46px;flex:none;border:0;border-radius:999px;background:var(--color-neutral-100);
+    box-shadow:var(--shadow-md);cursor:pointer;font:600 12px var(--font-body);color:var(--color-accent-700);display:flex;align-items:center;justify-content:center}
+  .round:active{background:var(--color-accent-100)}
+  .chips{position:absolute;left:14px;right:14px;top:calc(72px + env(safe-area-inset-top));display:flex;gap:6px;z-index:500;
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{height:42px;padding:0 17px;border-radius:999px;border:1px solid var(--color-divider);background:var(--color-neutral-100);
+    color:#201e1d;font:600 12.5px var(--font-body);cursor:pointer;white-space:nowrap;flex:none;box-shadow:var(--shadow-sm)}
+  .chip.on{border:0;background:var(--color-accent-2-600);color:var(--color-neutral-100)}
+  :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+
+  .pin{background:none;border:0}
+  .pin .dot{width:26px;height:26px;border-radius:999px;border:2.5px solid var(--color-neutral-100);box-shadow:var(--shadow-sm)}
+  .pin .tip{width:0;height:0;margin:-2px auto 0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid currentColor}
+  .pin.sel .dot{width:34px;height:34px;border-width:3px;box-shadow:var(--shadow-lg)}
+  .pin.ripe .dot{box-shadow:0 0 0 2.5px #d9a531,var(--shadow-sm)}
+  .pin.ripe.sel .dot{box-shadow:0 0 0 3px #d9a531,var(--shadow-lg)}
+
+  .locate{position:absolute;right:14px;bottom:112px;z-index:500}
+  .locate span{width:12px;height:12px;border-radius:999px;background:var(--color-accent-2-600);box-shadow:0 0 0 4px var(--color-accent-2-200)}
+
+  .sheet{position:absolute;left:12px;right:12px;bottom:96px;background:var(--color-neutral-100);border-radius:var(--radius-lg);
+    padding:14px;z-index:520;transform:translateY(16px);opacity:0;pointer-events:none;transition:.26s ease}
+  .sheet.show{transform:none;opacity:1;pointer-events:auto}
+  .thumb{width:58px;height:58px;border-radius:14px;flex:none;background-size:cover;background-position:center}
+  .tag{font:600 9.5px var(--font-body);letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px}
+  .tag-cat{color:var(--color-neutral-100)}
+  .tag-ripe{color:var(--color-accent-700);background:var(--color-accent-200)}
+  h3.name{font-family:var(--font-heading);font-size:21px;line-height:1.1;margin:3px 0}
+  .meta{font:13px var(--font-body);color:rgba(32,30,29,.6)}
+  .acc{font:13px/1.45 var(--font-body);color:var(--color-accent-2-800);background:var(--color-accent-2-100);
+    border-radius:var(--radius-md);padding:10px 12px;margin-top:11px}
+
+  .go{height:46px;border:0;border-radius:999px;background:var(--color-accent-2-600);color:var(--color-neutral-100);
+    font-family:var(--font-heading);font-size:15px;cursor:pointer;padding:0 20px}
+  .go:active{background:var(--color-accent-2-700)}
+  .go[disabled]{opacity:.45}
+  .ghost{height:46px;border:1px solid var(--color-divider);border-radius:999px;background:transparent;
+    font:15px var(--font-body);color:#201e1d;cursor:pointer;padding:0 20px}
+  .ghost:active{background:var(--color-neutral-200)}
+  .x{width:46px;height:46px;padding:0;flex:none}
+
+  #panel{position:absolute;inset:0;background:var(--color-neutral-100);z-index:540;display:none;flex-direction:column;
+    padding-top:env(safe-area-inset-top)}
+  #panel.show{display:flex}
+  #panelBody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 20px 110px}
+  #panelBody h2{font-size:30px;margin:0 0 10px}
+  .field{margin-bottom:18px}
+  .label{font:600 11px var(--font-body);letter-spacing:.09em;text-transform:uppercase;color:var(--color-neutral-600);margin-bottom:8px}
+  .input{background:transparent;border:1px solid var(--color-divider);border-radius:999px;height:48px;padding:0 18px;
+    font:16px var(--font-body);width:100%}
+  textarea.input{border-radius:var(--radius-md);height:86px;padding:13px 16px;line-height:1.5;resize:none}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .grid4 button{height:42px;border-radius:999px;border:1px solid var(--color-divider);background:transparent;
+    font:600 12.5px var(--font-body);color:#201e1d;cursor:pointer}
+  .grid4 button.on{border:0;background:var(--color-accent-2-600);color:var(--color-neutral-100)}
+  .months{display:flex;gap:4px}
+  .months button{flex:1;min-width:0;aspect-ratio:1;border-radius:999px;border:1px solid var(--color-divider);
+    background:transparent;font:600 11px var(--font-body);color:var(--color-neutral-700);cursor:pointer;padding:0}
+  .months button.on{border:0;background:var(--color-accent-2-600);color:var(--color-neutral-100)}
+  .months button.now{box-shadow:inset 0 0 0 2px var(--color-accent)}
+  .months.pick{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+  .months.pick button{aspect-ratio:auto;min-height:46px;border-radius:var(--radius-md);font-size:13px}
+  .stack{display:flex;flex-direction:column;gap:7px}
+  .stack button{text-align:left;padding:13px 16px;border-radius:var(--radius-md);border:1px solid var(--color-divider);
+    background:transparent;font:14.5px var(--font-body);color:#201e1d;cursor:pointer}
+  .stack button.on{border:1.5px solid var(--color-accent-2-600);background:var(--color-accent-2-100)}
+  .row{display:flex;gap:14px;align-items:flex-start}
+  .listitem{display:flex;gap:13px;align-items:center;text-align:left;padding:11px;border:1px solid var(--color-divider);
+    border-radius:var(--radius-md);background:transparent;cursor:pointer;width:100%}
+  .listitem:active{background:var(--color-accent-2-100)}
+  .hero{width:100%;height:200px;border-radius:var(--radius-md);background-size:cover;background-position:center}
+  .shot{flex:1;width:100%;border:1.5px dashed var(--color-accent-2-400);border-radius:var(--radius-lg);cursor:pointer;
+    background:repeating-linear-gradient(135deg,var(--color-accent-2-100) 0 9px,var(--color-accent-2-200) 9px 18px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:280px;background-size:cover;background-position:center}
+  .shot .lens{width:62px;height:62px;border-radius:999px;background:var(--color-accent-2-600);display:flex;align-items:center;justify-content:center}
+  .shot .lens i{width:22px;height:22px;border:2.75px solid var(--color-neutral-100);border-radius:999px;display:block}
+  .shot small{font:12px ui-monospace,Menlo,monospace;color:var(--color-accent-2-800)}
+  .capbar{flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 20px 10px}
+  .capbar span{font:600 11px var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-600);white-space:nowrap}
+  .link{border:0;background:transparent;font:14px var(--font-body);color:var(--color-accent-2-700);text-decoration:underline;cursor:pointer;padding:6px 0}
+  .empty{text-align:center;padding:40px 10px}
+  .datarow{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px;padding-top:18px;border-top:1px solid var(--color-divider)}
+
+  nav{position:absolute;left:0;right:0;bottom:0;padding:8px 0 calc(8px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,var(--color-neutral-100) 62%,rgba(249,244,237,0));display:flex;justify-content:center;z-index:560}
+  .navpill{display:flex;align-items:center;gap:6px;background:var(--color-neutral-100);border:1px solid var(--color-divider);
+    border-radius:999px;padding:6px;box-shadow:var(--shadow-md)}
+  .tab{height:46px;padding:0 17px;border-radius:999px;border:0;background:transparent;cursor:pointer;
+    font:600 13.5px var(--font-body);color:var(--color-neutral-700)}
+  .tab.on{background:var(--color-accent-2-100);color:var(--color-accent-2-800)}
+  .fab{width:46px;height:46px;border:0;border-radius:999px;background:var(--color-accent-2-600);color:var(--color-neutral-100);
+    font-family:var(--font-heading);font-size:24px;line-height:1;cursor:pointer}
+  #install{position:absolute;left:14px;right:14px;bottom:96px;z-index:555;display:none;align-items:center;gap:10px;
+    background:var(--color-neutral-100);border-radius:999px;padding:8px 8px 8px 18px;box-shadow:var(--shadow-lg)}
+  #install.show{display:flex}
+  #crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:510;display:none;
+    width:44px;height:44px;border-radius:999px;border:3px solid var(--color-accent-2-600);
+    box-shadow:0 0 0 3px var(--color-neutral-100),var(--shadow-md);pointer-events:none}
+  #crosshair.show{display:block}
+  #pickbar{position:absolute;left:14px;right:14px;bottom:96px;z-index:555;display:none;gap:8px}
+  #pickbar.show{display:flex}
+  .toast{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);z-index:600;background:#201e1d;
+    color:var(--color-neutral-100);font:13px var(--font-body);padding:10px 16px;border-radius:999px;opacity:0;transition:.25s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div id="crosshair"></div>
+
+    <div class="bar">
+      <div class="search"><span class="ring"></span>
+        <input id="mq" type="search" enterkeyhint="search" autocomplete="off" placeholder="Filter the map — lemons, figs…">
+        <button class="clr" id="mqClear" data-act="clearMq" type="button">&#10005;</button>
+      </div>
+      <button class="round" data-act="ripe" type="button" id="monthBtn">—</button>
+    </div>
+    <div class="chips" id="chips"></div>
+
+    <button class="round locate" data-act="locate" type="button" title="Centre on me"><span></span></button>
+
+    <div class="sheet" id="sheet"></div>
+
+    <div id="pickbar">
+      <button class="go" data-act="pickDone" type="button" style="flex:1">Drop the pin here</button>
+      <button class="ghost x" data-act="pickCancel" type="button">&#10005;</button>
+    </div>
+  </div>
+
+  <div id="panel"><div id="panelBody"></div></div>
+
+  <div id="install">
+    <span style="flex:1;font:13.5px var(--font-body)">Add Fruitscape to your home screen</span>
+    <button class="go" data-act="install" type="button" style="height:38px;font-size:13.5px">Install</button>
+    <button class="ghost x" data-act="dismissInstall" type="button" style="height:38px;width:38px">&#10005;</button>
+  </div>
+
+  <nav id="nav">
+    <div class="navpill">
+      <button class="tab" data-act="map" type="button">Map</button>
+      <button class="tab" data-act="log" type="button">Logbook</button>
+      <button class="tab" data-act="ripe" type="button">Ripe</button>
+      <button class="fab" data-act="new" type="button">+</button>
+    </div>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<input type="file" id="photoIn" accept="image/*" capture="environment" hidden>
+<input type="file" id="importIn" accept="application/json,.json" hidden>
+
+<script>
+/* ── data ────────────────────────────────────────────────────────────── */
+const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const ML = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+const CATS = ["Fruit","Veg","Herb","Other"];
+const CAT_BG = {Fruit:"#728157", Veg:"#aebf92", Herb:"#3d472b", Other:"#a19786"};
+const CAT_STRIPE = {Fruit:["#e1eecc","#ccdbb2"], Veg:["#f0fae1","#e1eecc"], Herb:["#dcd3c4","#c0b6a5"], Other:["#eee7db","#dcd3c4"]};
+const ACCESS = ["Public — verge or park","Overhangs a footpath or laneway","Private — ask first"];
+const RIPE = "#c67139";
+const HOME = [-31.9283, 115.8742];           // Inglewood, WA
+const thisMonth = new Date().getMonth() + 1;
+
+const DB = (() => {
+  let p;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open('verge', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('finds', {keyPath:'id'});
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('finds', mode), s = t.objectStore('finds');
+      const out = fn(s);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+      t.onerror = () => rej(t.error);
+    });
+  };
+  return {
+    all: () => tx('readonly', s => s.getAll()),
+    put: rec => tx('readwrite', s => s.put(rec)),
+    del: id => tx('readwrite', s => s.delete(id)),
+    clear: () => tx('readwrite', s => s.clear())
+  };
+})();
+
+const S = { screen:'map', finds:[], filter:'All', selId:null, q:'', mq:'', step:1, draft:null, picking:false, deferredPrompt:null };
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isRipe = f => (f.months||[]).includes(thisMonth);
+const season = f => { const m = f.months||[]; if (!m.length) return 'Season unknown';
+  if (m.length >= 11) return 'Year-round';
+  return m.length === 1 ? MN[m[0]-1] : MN[Math.min(...m)-1] + ' – ' + MN[Math.max(...m)-1]; };
+const stripe = f => { const s = CAT_STRIPE[f.cat] || CAT_STRIPE.Other;
+  return `repeating-linear-gradient(135deg,${s[0]} 0 8px,${s[1]} 8px 16px)`; };
+const bgOf = f => f.photo ? `url(${f.photo})` : (f.hasPhoto ? `url(/api/photo/${f.id})` : stripe(f));
+const fmtDate = d => d ? new Date(d).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}) : '—';
+
+/* ── shared backend ─────────────────────────────────────────────────── */
+const API = '/api';
+const apiGet = async () => { const r = await fetch(API+'/finds'); if (!r.ok) throw new Error('fetch failed'); return r.json(); };
+const apiSave = async rec => {
+  const payload = {id:rec.id, name:rec.name, cat:rec.cat, loc:rec.loc, months:rec.months, access:rec.access,
+    notes:rec.notes, lat:rec.lat, lng:rec.lng, created:rec.created, visited:rec.visited,
+    photo: (rec.photo && rec.photo.startsWith('data:')) ? rec.photo : undefined, hasPhoto: !!rec.hasPhoto};
+  const r = await fetch(API+'/finds', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload)});
+  if (!r.ok) throw new Error('save failed');
+  return r.json();
+};
+const apiDelete = async id => { const r = await fetch(API+'/finds/'+id, {method:'DELETE'}); if (!r.ok) throw new Error('delete failed'); };
+
+const tombstones = () => { try { return JSON.parse(localStorage.getItem('fruitscape.deleted')||'[]'); } catch { return []; } };
+const addTombstone = id => { const t = tombstones(); if (!t.includes(id)) { t.push(id);
+  try { localStorage.setItem('fruitscape.deleted', JSON.stringify(t)); } catch(e){} } };
+const clearTombstone = id => { try { localStorage.setItem('fruitscape.deleted', JSON.stringify(tombstones().filter(x=>x!==id))); } catch(e){} };
+
+async function syncNow(){
+  let remote;
+  try { remote = await apiGet(); } catch (e) { return false; }
+  const gone = new Set(tombstones());
+  for (const id of [...gone]) {
+    try { await apiDelete(id); clearTombstone(id); gone.delete(id); } catch (e) {}
+  }
+  for (const f of S.finds.filter(x => x._pending)) {
+    try {
+      const saved = await apiSave(f);
+      Object.assign(f, saved); delete f._pending; await DB.put(f);
+    } catch (e) {}
+  }
+  remote = remote.filter(r => !gone.has(r.id));
+  const byId = new Map(S.finds.map(f => [f.id, f]));
+  const merged = remote.map(r => { const local = byId.get(r.id); return local ? {...r, photo: local.photo} : r; });
+  const pendingLocal = S.finds.filter(f => f._pending && !merged.some(m => m.id === f.id));
+  S.finds = merged.concat(pendingLocal);
+  await DB.clear();
+  for (const f of S.finds) await DB.put(f);
+  return true;
+}
+
+const catTag = f => `<span class="tag tag-cat" style="background:${CAT_BG[f.cat]||CAT_BG.Other}">${esc(f.cat)}</span>`;
+const ripeTag = f => isRipe(f) ? '<span class="tag tag-ripe">Ripe now</span>' : '';
+
+function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200); }
+
+/* ── map ─────────────────────────────────────────────────────────────── */
+const map = L.map('map', {center:HOME, zoom:16, zoomControl:false});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO'}).addTo(map);
+const markers = new Map();
+let meMarker = null;
+
+const matchesQ = (f, q) => !q || (f.name + ' ' + (f.loc || '') + ' ' + (f.cat || '')).toLowerCase().includes(q);
+
+const pinIcon = (f, sel) => {
+  const c = CAT_BG[f.cat] || CAT_BG.Other;
+  return L.divIcon({
+    className: 'pin' + (sel ? ' sel' : '') + (isRipe(f) ? ' ripe' : ''),
+    html: `<div style="color:${c}"><div class="dot" style="background:${c}"></div><div class="tip"></div></div>`,
+    iconSize: sel ? [34,42] : [26,34], iconAnchor: sel ? [17,42] : [13,34]
+  });
+};
+
+function syncMarkers(){
+  const keep = new Set();
+  const mq = S.mq.trim().toLowerCase();
+  S.finds.forEach(f => {
+    if (S.filter !== 'All' && f.cat !== S.filter) return;
+    if (!matchesQ(f, mq)) return;
+    keep.add(f.id);
+    let m = markers.get(f.id);
+    if (!m) { m = L.marker([f.lat, f.lng]).addTo(map); m.on('click', () => select(f.id)); markers.set(f.id, m); }
+    else if (!map.hasLayer(m)) m.addTo(map);
+    m.setLatLng([f.lat, f.lng]);
+    m.setIcon(pinIcon(f, f.id === S.selId));
+  });
+  markers.forEach((m, id) => { if (!keep.has(id)) { map.removeLayer(m); } });
+}
+
+map.on('click', () => { if (!S.picking) { S.selId = null; renderSheet(); syncMarkers(); } });
+
+/* ── selection sheet ─────────────────────────────────────────────────── */
+function renderSheet(){
+  const el = document.getElementById('sheet');
+  const f = S.finds.find(x => x.id === S.selId);
+  if (!f) { el.classList.remove('show'); return; }
+  el.innerHTML = `
+    <div class="row">
+      <div class="thumb" style="background-image:${bgOf(f)}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px">${catTag(f)}${ripeTag(f)}</div>
+        <h3 class="name">${esc(f.name)}</h3>
+        <div class="meta">${esc(f.loc || 'No street noted')} · ${season(f)}</div>
+      </div>
+    </div>
+    ${f.access ? `<div class="acc">${esc(f.access)}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:11px">
+      <button class="go" data-act="open" data-id="${f.id}" type="button" style="flex:1">Open find</button>
+      <button class="ghost x" data-act="closeSheet" type="button">&#10005;</button>
+    </div>`;
+  el.classList.add('show');
+}
+function select(id){
+  S.selId = id; renderSheet(); syncMarkers();
+  const f = S.finds.find(x => x.id === id);
+  if (f) map.panTo([f.lat, f.lng], {animate:true});
+}
+
+/* ── chips ───────────────────────────────────────────────────────────── */
+function renderChips(){
+  document.getElementById('chips').innerHTML = ['All'].concat(CATS)
+    .map(c => `<button class="chip${S.filter===c?' on':''}" data-act="filter" data-v="${c}" type="button">${c}</button>`).join('');
+}
+
+/* ── screens ─────────────────────────────────────────────────────────── */
+function monthStrip(months, interactive){
+  return `<div class="months${interactive?' pick':''}">` + ML.map((l,i) => {
+    const n = i+1, on = months.includes(n);
+    return `<button type="button" class="${on?'on':''}${n===thisMonth?' now':''}"
+      ${interactive?`data-act="mon" data-v="${n}"`:'disabled'}>${interactive?MN[i]:l}</button>`;
+  }).join('') + `</div>`;
+}
+
+function screenLog(){
+  const q = S.q.trim().toLowerCase();
+  const list = S.finds
+    .filter(f => (S.filter === 'All' || f.cat === S.filter))
+    .filter(f => matchesQ(f, q))
+    .sort((a,b) => b.created - a.created);
+  return `
+    <h2>Logbook</h2>
+    <div style="height:46px;border-radius:999px;background:var(--color-neutral-200);display:flex;align-items:center;padding:0 16px;gap:10px;margin-bottom:11px">
+      <span class="ring" style="width:13px;height:13px;border:2px solid var(--color-neutral-500);border-radius:999px;flex:none"></span>
+      <input id="q" type="search" autocomplete="off" value="${esc(S.q)}" placeholder="Search species or street"
+        style="flex:1;min-width:0;border:0;background:transparent;outline:none;font:16px var(--font-body);color:#201e1d">
+    </div>
+    <div class="chips" style="position:static;left:auto;right:auto;top:auto;margin-bottom:14px">
+      ${['All'].concat(CATS).map(c => `<button class="chip${S.filter===c?' on':''}" data-act="filter" data-v="${c}" type="button">${c}</button>`).join('')}
+    </div>
+    <div id="logList">${logList(list)}</div>`;
+}
+
+function logList(list){
+  return `
+    <div class="label">${list.length} ${list.length===1?'find':'finds'}</div>
+    <div class="stack" style="gap:12px">
+      ${list.length ? list.map(f => `
+        <button class="listitem" data-act="open" data-id="${f.id}" type="button">
+          <div class="thumb" style="background-image:${bgOf(f)}"></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">${catTag(f)}
+              ${isRipe(f)?'<span style="width:7px;height:7px;border-radius:999px;background:'+RIPE+'"></span>':''}</div>
+            <div style="font-family:var(--font-heading);font-size:17px;line-height:1.15">${esc(f.name)}</div>
+            <div style="font:12.5px var(--font-body);color:rgba(32,30,29,.55);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${esc(f.loc || 'No street noted')} · ${f.visited ? 'visited '+fmtDate(f.visited) : 'added '+fmtDate(f.created)}</div>
+          </div>
+        </button>`).join('')
+      : `<div class="empty"><div style="font-family:var(--font-heading);font-size:20px;margin-bottom:6px">Nothing logged yet</div>
+         <div class="meta" style="margin-bottom:16px">Tap + when you walk past something worth picking.</div>
+         <button class="ghost" data-act="seed" type="button">Load eight Inglewood examples</button></div>`}
+    </div>
+    <div class="datarow">
+      <button class="ghost" data-act="export" type="button" style="height:40px;font-size:13.5px">Export JSON</button>
+      <button class="ghost" data-act="import" type="button" style="height:40px;font-size:13.5px">Import</button>
+      ${S.finds.length ? `<button class="ghost" data-act="wipe" type="button" style="height:40px;font-size:13.5px;color:var(--color-accent-700)">Clear all</button>` : ''}
+    </div>`;
+}
+
+function screenRipe(){
+  const list = S.finds.filter(isRipe).sort((a,b) => b.created - a.created);
+  return `
+    <div class="label" style="color:var(--color-accent-700)">${MN[thisMonth-1]}</div>
+    <h2>Ripe near you</h2>
+    <p class="meta" style="margin:0 0 18px">${list.length ? `${list.length} of your finds ${list.length===1?'is':'are'} worth a walk this month.` : 'Nothing you have logged fruits this month.'}</p>
+    <div class="months" style="margin-bottom:24px">
+      ${ML.map((l,i) => `<button type="button" disabled class="${i+1===thisMonth?'on':''}">${l}</button>`).join('')}
+    </div>
+    <div class="stack" style="gap:22px">
+      ${list.map(f => `
+        <button style="text-align:left;border:0;padding:0;background:transparent;cursor:pointer" data-act="open" data-id="${f.id}" type="button">
+          <div class="hero" style="background-image:${bgOf(f)};height:170px"></div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:9px">
+            <span style="font-family:var(--font-heading);font-size:20px">${esc(f.name)}</span>
+            <span class="meta">${esc(f.loc || '')}</span>
+          </div>
+          ${f.access ? `<div style="font:13px/1.45 var(--font-body);color:var(--color-accent-2-800);margin-top:2px">${esc(f.access)}</div>` : ''}
+        </button>`).join('')}
+    </div>`;
+}
+
+function screenDetail(){
+  const f = S.finds.find(x => x.id === S.detailId);
+  if (!f) return '<div class="empty meta">That find is gone.</div>';
+  return `
+    <div style="position:relative;margin:-10px -20px 16px">
+      <div class="hero" style="border-radius:0 0 var(--radius-lg) var(--radius-lg);background-image:${bgOf(f)}"></div>
+      <button class="round" data-act="back" type="button" style="position:absolute;left:16px;top:12px;width:40px;height:40px;font-size:17px;color:#201e1d">←</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">${catTag(f)}${ripeTag(f)}</div>
+    <h2 style="margin-bottom:3px">${esc(f.name)}</h2>
+    <div class="meta" style="margin-bottom:20px">${esc(f.loc || 'No street noted')}</div>
+    <div class="label">Fruiting</div>
+    ${monthStrip(f.months||[], false)}
+    <div class="meta" style="margin:6px 0 22px">${season(f)}</div>
+    ${f.access ? `<div class="acc" style="margin:0 0 14px">${esc(f.access)}</div>` : ''}
+    ${f.notes ? `<div style="font:15px/1.6 var(--font-body);margin-bottom:20px">${esc(f.notes)}</div>` : ''}
+    <div style="display:flex;justify-content:space-between;padding:13px 0;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);margin-bottom:8px">
+      <span class="meta">Last visited</span><span style="font:600 13px var(--font-body)">${f.visited ? fmtDate(f.visited) : 'Not yet'}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--color-divider);margin-bottom:20px">
+      <span class="meta">Coordinates</span><span style="font:12px ui-monospace,Menlo,monospace">${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}</span>
+    </div>
+    <div style="display:flex;gap:9px;margin-bottom:14px">
+      <button class="go" data-act="visited" data-id="${f.id}" type="button" style="flex:1">Visited today</button>
+      <button class="ghost" data-act="showOnMap" data-id="${f.id}" type="button" style="flex:1">Show on map</button>
+    </div>
+    <button class="link" data-act="del" data-id="${f.id}" type="button" style="color:var(--color-accent-700)">Delete this find</button>`;
+}
+
+function screenCapture(){
+  const d = S.draft || {};
+  if (S.step === 1) return `
+    <div class="capbar"><button class="link" data-act="cancel" type="button">Cancel</button>
+      <span>New find · 1 of 2</span><span style="width:52px"></span></div>
+    <div style="display:flex;flex-direction:column;padding:0 0 20px">
+      <h2 style="font-size:27px;margin-bottom:4px">What did you find?</h2>
+      <p class="meta" style="margin-bottom:16px">Photo first — fill in the rest from the footpath or later at home.</p>
+      <button class="shot" data-act="shoot" type="button" style="background-image:${d.photo?`url(${d.photo})`:'none'}">
+        ${d.photo ? '' : '<span class="lens"><i></i></span><small>tap to shoot · photo of the plant</small>'}
+      </button>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="go" data-act="next" type="button" style="flex:1">${d.photo ? 'Next' : 'Continue without a photo'}</button>
+      </div>
+      <div class="meta" style="margin-top:14px;font-size:12.5px">${d.lat
+        ? `Location captured · ${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}${d.acc?` · ±${Math.round(d.acc)} m`:''}`
+        : 'Finding your location…'}</div>
+    </div>`;
+
+  return `
+    <div class="capbar"><button class="link" data-act="back1" type="button">Back</button>
+      <span>New find · 2 of 2</span><span style="width:40px"></span></div>
+    <div style="display:flex;gap:13px;align-items:center;padding:11px;background:var(--color-accent-2-100);border-radius:var(--radius-md);margin-bottom:18px">
+      <div class="thumb" style="width:54px;height:54px;background-image:${d.photo?`url(${d.photo})`:stripe({cat:d.cat})}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font:600 12.5px var(--font-body);color:var(--color-accent-2-800)">${d.lat ? 'Pinned' : 'No location yet'}</div>
+        <div style="font:11.5px ui-monospace,Menlo,monospace;color:var(--color-accent-2-700);margin-top:2px">
+          ${d.lat ? `${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}${d.acc?` · ±${Math.round(d.acc)} m`:''}` : 'place it on the map'}</div>
+      </div>
+      <button class="link" data-act="place" type="button">Move</button>
+    </div>
+    <div class="field"><div class="label">Category</div>
+      <div class="grid4">${CATS.map(c => `<button type="button" class="${d.cat===c?'on':''}" data-act="cat" data-v="${c}">${c}</button>`).join('')}</div></div>
+    <div class="field"><div class="label">Species</div>
+      <input class="input" id="fSpecies" value="${esc(d.name)}" placeholder="Mulberry, lemon, rosemary…"></div>
+    <div class="field"><div class="label">Street or landmark</div>
+      <input class="input" id="fLoc" value="${esc(d.loc)}" placeholder="Laneway off Ninth Ave"></div>
+    <div class="field"><div class="label">Fruiting months</div>${monthStrip(d.months||[], true)}</div>
+    <div class="field"><div class="label">Access</div>
+      <div class="stack">${ACCESS.map((a,i) => `<button type="button" class="${d.access===a?'on':''}" data-act="acc" data-v="${i}">${a}</button>`).join('')}</div></div>
+    <div class="field"><div class="label">Notes</div>
+      <textarea class="input" id="fNotes" placeholder="Reachable from the gravel side. Owner doesn't mind.">${esc(d.notes)}</textarea></div>
+    <button class="go" data-act="save" type="button" style="width:100%;height:54px;font-size:17px">Save to the map</button>`;
+}
+
+/* ── render ──────────────────────────────────────────────────────────── */
+function render(){
+  const onMap = S.screen === 'map';
+  document.getElementById('panel').classList.toggle('show', !onMap);
+  document.getElementById('nav').style.display = (S.screen === 'capture') ? 'none' : 'flex';
+  document.getElementById('monthBtn').textContent = MN[thisMonth-1];
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on',
+    t.dataset.act === S.screen || (t.dataset.act === 'log' && S.screen === 'detail')));
+
+  if (!onMap) {
+    const body = document.getElementById('panelBody');
+    body.innerHTML = S.screen === 'log' ? screenLog()
+      : S.screen === 'ripe' ? screenRipe()
+      : S.screen === 'detail' ? screenDetail()
+      : screenCapture();
+    body.scrollTop = 0;
+    const q = document.getElementById('q');
+    if (q) q.oninput = e => {
+      S.q = e.target.value;
+      const qq = S.q.trim().toLowerCase();
+      const list = S.finds
+        .filter(f => (S.filter === 'All' || f.cat === S.filter))
+        .filter(f => matchesQ(f, qq))
+        .sort((a,b) => b.created - a.created);
+      document.getElementById('logList').innerHTML = logList(list);
+    };
+  }
+  renderChips(); renderSheet(); syncMarkers();
+  document.querySelector('.chips').style.display = onMap ? 'flex' : 'none';
+  document.querySelector('.bar').style.display = onMap ? 'flex' : 'none';
+  document.querySelector('.locate').style.display = onMap && !S.picking ? 'flex' : 'none';
+  document.getElementById('crosshair').classList.toggle('show', S.picking);
+  document.getElementById('pickbar').classList.toggle('show', S.picking);
+  if (S.picking) document.getElementById('sheet').classList.remove('show');
+}
+
+function go(screen){ S.screen = screen; if (screen === 'map') S.picking = S.picking; render(); }
+
+/* ── photo ───────────────────────────────────────────────────────────── */
+function compress(file){
+  return new Promise(res => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = 1024, sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width*sc); c.height = Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.68));
+    };
+    img.onerror = () => res(null);
+    img.src = url;
+  });
+}
+document.getElementById('photoIn').onchange = async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file || !S.draft) return;
+  S.draft.photo = await compress(file);
+  render();
+};
+
+/* ── location ────────────────────────────────────────────────────────── */
+function locateMe(pan){
+  if (!navigator.geolocation) { toast('This device has no location'); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    const ll = [p.coords.latitude, p.coords.longitude];
+    if (!meMarker) meMarker = L.circleMarker(ll, {radius:7, color:'#f9f4ed', weight:3, fillColor:'#728157', fillOpacity:1}).addTo(map);
+    else meMarker.setLatLng(ll);
+    if (S.draft && !S.draft.lat) { S.draft.lat = ll[0]; S.draft.lng = ll[1]; S.draft.acc = p.coords.accuracy; render(); }
+    if (pan) map.setView(ll, 17);
+  }, () => {
+    if (S.draft && !S.draft.lat) { S.draft.lat = map.getCenter().lat; S.draft.lng = map.getCenter().lng; render(); }
+    toast('Location unavailable — place the pin by hand');
+  }, {enableHighAccuracy:true, timeout:8000, maximumAge:10000});
+}
+
+/* ── actions ─────────────────────────────────────────────────────────── */
+function readForm(){
+  const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  if (S.step === 2 && S.draft) {
+    S.draft.name = g('fSpecies'); S.draft.loc = g('fLoc'); S.draft.notes = g('fNotes');
+  }
+}
+
+const ACTS = {
+  map: () => go('map'),
+  log: () => go('log'),
+  ripe: () => go('ripe'),
+  new: () => { S.draft = {name:'',loc:'',cat:'Fruit',months:[],access:ACCESS[0],notes:'',photo:null,lat:null,lng:null};
+    S.step = 1; go('capture'); locateMe(false); },
+  cancel: () => { S.draft = null; S.step = 1; go('map'); },
+  shoot: () => document.getElementById('photoIn').click(),
+  next: () => { S.step = 2; render(); },
+  back1: () => { readForm(); S.step = 1; render(); },
+  cat: (v) => { readForm(); S.draft.cat = v; render(); },
+  acc: (v) => { readForm(); S.draft.access = ACCESS[+v]; render(); },
+  mon: (v) => { readForm(); const n = +v, m = S.draft.months || [];
+    S.draft.months = m.includes(n) ? m.filter(x => x !== n) : m.concat(n).sort((a,b)=>a-b); render(); },
+  place: () => { readForm(); S.picking = true; go('map'); },
+  pickCancel: () => { S.picking = false; go('capture'); },
+  pickDone: () => { const c = map.getCenter(); S.draft.lat = c.lat; S.draft.lng = c.lng; S.draft.acc = null;
+    S.picking = false; go('capture'); },
+  save: async () => {
+    readForm();
+    const d = S.draft;
+    if (!d.lat) { const c = map.getCenter(); d.lat = c.lat; d.lng = c.lng; }
+    const rec = {...d, id: 'f' + Date.now(), name: (d.name||'').trim() || 'Unnamed find', created: Date.now(), visited: null, _pending: true};
+    S.finds.push(rec); S.draft = null; S.step = 1; S.detailId = rec.id;
+    go('detail');
+    try {
+      const saved = await apiSave(rec);
+      Object.assign(rec, saved); delete rec._pending;
+      await DB.put(rec); toast('Saved to the shared map');
+    } catch (err) {
+      try { await DB.put(rec); toast('Saved on this device — will sync when online'); }
+      catch (err2) { rec.photo = null; try { await DB.put(rec); toast('Saved without the photo — storage is full'); }
+        catch (err3) { toast('Could not save — device storage is full'); } }
+    }
+    render();
+  },
+  open: (v, id) => { S.detailId = id; go('detail'); },
+  back: () => go('log'),
+  showOnMap: (v, id) => { S.selId = id; go('map'); select(id); map.setView([S.finds.find(f=>f.id===id).lat, S.finds.find(f=>f.id===id).lng], 18); },
+  visited: async (v, id) => { const f = S.finds.find(x => x.id === id); f.visited = Date.now();
+    await DB.put(f); render(); toast('Marked as visited');
+    try { const saved = await apiSave(f); Object.assign(f, saved); delete f._pending; await DB.put(f); }
+    catch (err) { f._pending = true; await DB.put(f); } },
+  del: async (v, id) => { if (!confirm('Delete this find?')) return;
+    await DB.del(id); addTombstone(id);
+    S.finds = S.finds.filter(f => f.id !== id); const m = markers.get(id); if (m) { map.removeLayer(m); markers.delete(id); }
+    S.selId = null; go('log');
+    try { await apiDelete(id); clearTombstone(id); } catch (err) {} },
+  filter: (v) => { S.filter = v; render(); },
+  clearMq: () => { S.mq = ''; const i = document.getElementById('mq'); i.value = ''; i.focus(); onMapQuery(); },
+  closeSheet: () => { S.selId = null; render(); },
+  locate: () => locateMe(true),
+  export: () => {
+    const blob = new Blob([JSON.stringify({app:'fruitscape', version:1, finds:S.finds}, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'fruitscape-finds.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+  import: () => document.getElementById('importIn').click(),
+  wipe: async () => { if (!confirm('Remove every find from this device\u2019s cache? (Does not delete them from the shared map.)')) return;
+    await DB.clear(); S.finds = []; markers.forEach(m => map.removeLayer(m)); markers.clear(); render(); syncNow().then(render); },
+  seed: async () => {
+    const demo = [
+      ['Mulberry','Fruit','Laneway off Ninth Ave',[11,12],1,'Enormous old tree; half the fruit ends up on the ground.',-31.9296,115.8712],
+      ['Lemon tree','Fruit','Beaufort St verge, near the bakery',[6,7,8,9],0,'Thin-skinned and very juicy. Someone keeps it pruned, so pick politely.',-31.9269,115.8748],
+      ['Loquat','Fruit','Grand Promenade, corner block',[8,9,10],1,'Sweet when properly orange. The low branches are the good ones.',-31.9318,115.8790],
+      ['Rosemary hedge','Herb','Hamer Park, eastern edge',[1,2,3,4,5,6,7,8,9,10,11,12],0,'Huge and woody. Take from the new growth on top.',-31.9243,115.8697],
+      ['Fig','Fruit','Salisbury St, back alley',[2,3],2,'Green-skinned, dark inside. Birds get there first if you wait.',-31.9252,115.8801],
+      ['Silverbeet','Veg','Verge garden, Eighth Ave',[1,2,3,4,5,6,7,8,9,10,11,12],0,'Planted for the street. Leave the crown.',-31.9285,115.8757],
+      ['Passionfruit vine','Fruit','Tenth Ave laneway',[3,4,5],1,'Only the wrinkly ones. Small crop but reliable.',-31.9312,115.8735],
+      ['Olive','Fruit','Sixth Ave, opposite the church',[4,5],0,'Needs curing — six weeks in brine.',-31.9258,115.8664]
+    ].map((r, i) => ({id:'demo'+i, name:r[0], cat:r[1], loc:r[2], months:r[3], access:ACCESS[r[4]], notes:r[5],
+      lat:r[6], lng:r[7], photo:null, created: Date.now() - (8-i)*86400000, visited:null}));
+    for (const d of demo) await DB.put(d);
+    S.finds = S.finds.concat(demo); render(); toast('Eight examples loaded');
+  },
+  install: async () => { const p = S.deferredPrompt; if (!p) return; S.deferredPrompt = null;
+    document.getElementById('install').classList.remove('show'); p.prompt(); },
+  dismissInstall: () => { document.getElementById('install').classList.remove('show');
+    try { localStorage.setItem('verge.installDismissed', '1'); } catch(e){} }
+};
+
+/* ── map search ──────────────────────────────────────────────────────── */
+function onMapQuery(fit){
+  const mq = S.mq.trim().toLowerCase();
+  document.getElementById('mqClear').classList.toggle('show', !!mq);
+  if (S.selId) { const sel = S.finds.find(f => f.id === S.selId);
+    if (sel && !matchesQ(sel, mq)) { S.selId = null; renderSheet(); } }
+  syncMarkers();
+  if (fit && mq) {
+    const hits = S.finds.filter(f => (S.filter === 'All' || f.cat === S.filter) && matchesQ(f, mq));
+    if (hits.length) map.fitBounds(L.latLngBounds(hits.map(f => [f.lat, f.lng])), {padding:[80,80], maxZoom:17});
+    else toast('Nothing logged matches that');
+  }
+}
+
+const mqInput = document.getElementById('mq');
+mqInput.addEventListener('input', () => { S.mq = mqInput.value; onMapQuery(false); });
+mqInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mqInput.blur(); onMapQuery(true); } });
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
+  const fn = ACTS[t.dataset.act];
+  if (fn) { e.preventDefault(); fn(t.dataset.v, t.dataset.id); }
+});
+
+document.getElementById('importIn').onchange = async e => {
+  const file = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const incoming = (data.finds || []).filter(f => f && f.lat && f.lng);
+    for (const f of incoming) {
+      f.id = f.id || 'f'+Math.random().toString(36).slice(2); f._pending = true;
+      await DB.put(f); if (!S.finds.some(x=>x.id===f.id)) S.finds.push(f);
+    }
+    render(); toast(`Imported ${incoming.length} finds — syncing…`);
+    await syncNow(); render();
+  } catch (err) { toast('That file could not be read'); }
+};
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); S.deferredPrompt = e;
+  let dismissed = false; try { dismissed = localStorage.getItem('verge.installDismissed') === '1'; } catch(err){}
+  if (!dismissed) document.getElementById('install').classList.add('show');
+});
+
+/* ── boot ────────────────────────────────────────────────────────────── */
+(async () => {
+  try { S.finds = await DB.all(); } catch (e) { S.finds = []; toast('Storage unavailable in this browser'); }
+  if (S.finds.length) {
+    const b = L.latLngBounds(S.finds.map(f => [f.lat, f.lng]));
+    map.fitBounds(b, {padding:[70,70], maxZoom:17});
+  }
+  render();
+  locateMe(false);
+  const ok = await syncNow();
+  if (ok) render(); else toast('Offline — showing finds saved on this device');
+  window.addEventListener('online', async () => { if (await syncNow()) render(); });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    try { await navigator.serviceWorker.register('sw.js'); } catch (e) {}
+  }
+})();
+</script>
+</body>
+</html>
